@@ -349,6 +349,7 @@ body {
 }
 .panel-spinner.on { display: block; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
 </head>
 <body>
 
@@ -391,11 +392,7 @@ body {
   <div class="spinner" id="spinner"></div>
   <span id="statusText"></span>
 </div>
-<div class="progress" id="progress">
-  <div class="step" id="s1"><div class="step-dot"></div>Scanning archive (part 1 of 2)…</div>
-  <div class="step" id="s2"><div class="step-dot"></div>Scanning archive (part 2 of 2)…</div>
-  <div class="step" id="s3"><div class="step-dot"></div>Ranking top 30 by relevance…</div>
-</div>
+<div class="progress" id="progress"></div>
 
 <!-- ── Synthesis ── -->
 <div class="synthesis" id="synthesis">
@@ -407,7 +404,7 @@ body {
 <div class="results" id="results">
   <div class="intro">
     <div class="intro-icon">📖</div>
-    <p>Search any concept or theme — not just keywords.<br>The AI finds related ideas even when exact words differ.</p>
+    <p>Search any concept, theme, name, or keyword across 1,300+ items from 84 people of faith.</p>
     <div class="chips">
       <button class="chip" onclick="qs('God\'s silence in suffering')">God's silence in suffering</button>
       <button class="chip" onclick="qs('counting the cost of faith')">counting the cost</button>
@@ -445,54 +442,17 @@ body {
   </div>
 
   <div class="panel-body">
-    <div class="field">
-      <label>Full Name *</label>
-      <input type="text" id="addName" placeholder="e.g. Watchman Nee" />
+    <div style="text-align:center;padding:28px 20px 12px;">
+      <div style="font-size:2.5rem;margin-bottom:14px;">📖</div>
+      <p style="font-size:0.97rem;line-height:1.65;color:#5a4a30;margin-bottom:18px;">
+        <strong>Add Person</strong> is available in the <strong>Cowork desktop app</strong>, where Claude writes the full entry, updates the index, and rebuilds the archive automatically.
+      </p>
+      <hr style="border:none;border-top:1px solid #e8dfc8;margin:18px 0;">
+      <p style="font-size:0.85rem;color:#8a7a60;line-height:1.6;text-align:left;">
+        To add someone when using this standalone version, open Claude in Cowork and type something like:<br><br>
+        <code style="background:#f5f0e8;border-radius:4px;padding:3px 8px;font-size:0.8rem;">Add [Name] to archive — Era: [era], Tradition: [tradition].</code>
+      </p>
     </div>
-
-    <div class="field">
-      <label>Era / Approximate Dates</label>
-      <select id="addEra">
-        <option value="auto">— Let Claude decide —</option>
-        <option value="01-early-church">Early Church (1–600 AD)</option>
-        <option value="02-medieval">Medieval (600–1500)</option>
-        <option value="03-reformation-puritan">Reformation &amp; Puritan (1500–1700)</option>
-        <option value="04-moravians-pietists">Moravian &amp; Pietist (1700–1800)</option>
-        <option value="05-great-awakenings">Great Awakenings (1700–1850)</option>
-        <option value="06-revivals">Revivals (1850–1950)</option>
-        <option value="07-missions" selected>Missions (1800–present)</option>
-        <option value="08-modern-witnesses">Modern Witnesses (1900–present)</option>
-        <option value="09-prayer-devotional">Prayer &amp; Devotional</option>
-        <option value="10-modern-movements">Modern Movements</option>
-        <option value="11-theologians-writers">Theologians &amp; Writers</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Tradition / Denomination</label>
-      <input type="text" id="addTradition" placeholder="e.g. Chinese house church, Baptist, Anglican…" />
-    </div>
-
-    <div class="field">
-      <label>Key Notes <span style="font-weight:400;color:#aaa">(optional)</span></label>
-      <textarea id="addNotes" placeholder="Key stories, writings, themes, or anything you want included — the AI will use this to shape the entry…"></textarea>
-      <div class="hint">The more context you provide, the richer the entry will be.</div>
-    </div>
-
-    <div class="panel-actions">
-      <button class="btn-generate" id="addArchiveBtn" onclick="sendToArchive()">✦ Add to Archive</button>
-    </div>
-
-    <!-- Fallback: shown if sendPrompt fails -->
-    <div id="addFallback" style="display:none;margin-top:16px;">
-      <div style="font-size:0.78rem;color:#8B6914;font-weight:600;margin-bottom:6px;">
-        Copy this into the chat if nothing appeared below ↓
-      </div>
-      <textarea id="addFallbackText" readonly
-        style="width:100%;height:80px;font-size:0.72rem;font-family:monospace;border:1px solid #d4c9b0;border-radius:6px;padding:8px;background:#faf9f7;resize:none;color:#444;"
-        onclick="this.select()"></textarea>
-    </div>
-  </div>
 
   <div class="panel-status">
     <div class="panel-spinner" id="panelSpinner"></div>
@@ -540,54 +500,6 @@ function panelStatus(msg, loading) {
   document.getElementById('panelSpinner').classList.toggle('on', !!loading);
 }
 
-function sendToArchive() {
-  const name = document.getElementById('addName').value.trim();
-  if (!name) { panelStatus('Please enter a name first.'); return; }
-
-  const era   = document.getElementById('addEra').value;
-  const trad  = document.getElementById('addTradition').value.trim();
-  const notes = document.getElementById('addNotes').value.trim();
-  const eraIsAuto = era === 'auto';
-  const eraLabel  = eraIsAuto ? '' : document.getElementById('addEra').selectedOptions[0].text;
-
-  const archiveRoot = '/Users/jonschelp/Documents/Claude/Projects/Men & Women of Faith';
-  const scriptPath  = '/Users/jonschelp/Library/Application Support/Claude/local-agent-mode-sessions/b4b1590c-28b4-47b4-83a1-35a8801556c7/9679a0e5-0e24-4546-94a0-f3aedb1b362a/local_bfcf1d5a-827b-4241-b9e9-a7040e8e11fd/outputs/extract_archive.py';
-
-  const eraLine  = eraIsAuto  ? "Era: determine from this person's historical period" : `Era: ${eraLabel}`;
-  const tradLine = trad       ? `Tradition: ${trad}` : "Tradition: determine from your knowledge of this person";
-  const noteLine = notes      ? `Notes from user: ${notes}` : '';
-
-  const msg = `Add to archive: ${name}. ${eraLine}. ${tradLine}. ${noteLine} Steps: (1) determine era folder from 01-early-church through 11-theologians-writers, (2) write markdown entry to ${archiveRoot}/entries/[ERA]/[slug].md using standard format (Overview, Historical Context, Key Stories, Quotes & Writings with Key Works list, Lessons & Themes), (3) add row to ${archiveRoot}/Faith Archive - Index.xlsx, (4) re-run python3 "${scriptPath}", regenerate HTML and call update_artifact on faith-archive-search. Also create a works summary .md file in ${archiveRoot}/works/ for their major writings.`;
-
-  // Show the message in the panel as a fallback — user can copy-paste if sendPrompt doesn't fire
-  const fb = document.getElementById('addFallback');
-  const ft = document.getElementById('addFallbackText');
-  ft.value = msg;
-  fb.style.display = 'block';
-
-  let sent = false;
-  try {
-    if (typeof sendPrompt === 'function') {
-      sendPrompt(msg);
-      sent = true;
-    }
-  } catch(e) { sent = false; }
-
-  if (sent) {
-    panelStatus('\u2713 Sent to Claude in chat! Watch the conversation below — I will confirm when the entry is written, indexed, and searchable.');
-  } else {
-    panelStatus('Copy the text below and paste it into chat to add this person.');
-  }
-}
-
-// legacy stub (no longer used but avoids any stray reference errors)
-async function generateEntry() {
-  sendToArchive();
-}
-
-function saveEntry() {
-  sendToArchive();
-}
 
 // ══════════════════════════
 // SAVED SEARCHES
@@ -663,94 +575,75 @@ function x(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── Fuse.js client-side fuzzy search ───────────────────────────────────
+let _fuse = null;
+function getFuse() {
+  if (!_fuse) {
+    _fuse = new Fuse(ARCHIVE, {
+      keys: [
+        { name: 'x', weight: 0.50 },
+        { name: 'h', weight: 0.25 },
+        { name: 'p', weight: 0.15 },
+        { name: 'a', weight: 0.05 },
+        { name: 's', weight: 0.05 },
+      ],
+      threshold: 0.42,
+      includeScore: true,
+      minMatchCharLength: 2,
+      ignoreLocation: true,
+    });
+  }
+  return _fuse;
+}
+
 function doSearch() {
-  const q = document.getElementById('q').value.trim(); if (!q) return;
+  const q = document.getElementById('q').value.trim();
+  if (!q) return;
   const saved = loadSaved();
-  if (saved[q.toLowerCase()]) { loadSaved_(q.toLowerCase()); status(`Loaded saved results — hit Search again to refresh`); return; }
+  if (saved[q.toLowerCase()]) { loadSaved_(q.toLowerCase()); status('Loaded saved results — hit Search again to refresh'); return; }
   runSearch(q);
 }
 
-async function runSearch(q) {
+function runSearch(q) {
   currentQuery = q; activeFilter = 'all';
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.t === 'all'));
   document.getElementById('synthesis').classList.remove('on');
   document.getElementById('filterRow').classList.remove('show');
-  document.getElementById('searchBtn').disabled = true;
-  document.getElementById('progress').classList.add('on');
-  status('Searching — about 30 seconds…', true);
-
-  const compact = ARCHIVE.map((item, i) => ({ i, p: item.p, t: item.t, d: item.x.substring(0, 160) }));
-  const mid = Math.floor(compact.length / 2);
-
-  const scanPrompt = (batch, label) =>
-    `Scan this Christian archive for items conceptually related to: "${q}"\nDo NOT just keyword match — find items addressing this theme or experience even with different terminology. Be inclusive.\nReturn ONLY JSON: {"indices": [array of i values]}\nItems (${label}):\n${JSON.stringify(batch)}`;
-
-  step('s1','active'); step('s2','active');
-  let candidates = [];
-  try {
-    const [r1, r2] = await Promise.all([
-      window.cowork.askClaude(scanPrompt(compact.slice(0, mid), 'part 1 of 2'), []),
-      window.cowork.askClaude(scanPrompt(compact.slice(mid), 'part 2 of 2'), [])
-    ]);
-    step('s1','done'); step('s2','done');
-    const parse = raw => { try { const m = raw.match(/\{[\s\S]*\}/); return m ? (JSON.parse(m[0]).indices||[]) : []; } catch(e){return[];} };
-    const idx1 = parse(r1).filter(i => i >= 0 && i < mid);
-    const idx2 = parse(r2).filter(i => i >= 0 && i < compact.length - mid).map(i => i + mid);
-    candidates = [...new Set([...idx1, ...idx2])];
-  } catch(e) { step('s1','done'); step('s2','done'); }
-
-  if (!candidates.length) {
-    const toks = q.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-    ARCHIVE.forEach((item, i) => { if (toks.some(t => (item.p+' '+item.x).toLowerCase().includes(t))) candidates.push(i); });
-    candidates = candidates.slice(0, 80);
-  }
-  if (!candidates.length) {
-    document.getElementById('progress').classList.remove('on');
-    status('No results found — try a different concept or phrase.');
-    document.getElementById('searchBtn').disabled = false; return;
-  }
-
-  step('s3','active');
-  status(`Found ${candidates.length} relevant items — ranking top 30…`, true);
-
-  const cItems = candidates.map(i => ({ i, p: ARCHIVE[i].p, t: ARCHIVE[i].t, s: ARCHIVE[i].s||'', h: ARCHIVE[i].h||'', text: ARCHIVE[i].x.substring(0,400) }));
-
-  const rankPrompt = `Select the top 30 results from a Christian archive for the concept: "${q}"
-
-Rank by these criteria (in priority order):
-1. DIRECTNESS — concept is the main subject, not a passing mention
-2. VIVIDNESS — concrete stories and sharp quotes over abstract summaries
-3. TYPE PRIORITY — quotes first, then stories, then overviews/themes
-4. VARIETY — spread across different people, eras, traditions (avoid clustering same person or era)
-5. STANDALONE USEFULNESS — each result works as a self-contained illustration or insight
-
-Return ONLY valid JSON:
-{"ranked": [up to 30 i values in order], "synthesis": "2-3 sentence synthesis of what the archive reveals about '${q}' across eras and traditions"}
-
-Candidates: ${JSON.stringify(cItems)}`;
-
-  let finalItems = [], synthesis = '';
-  try {
-    const r3 = await window.cowork.askClaude(rankPrompt, []);
-    step('s3','done');
-    let parsed = null;
-    try { const m = r3.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : null; } catch(e){}
-    if (parsed && Array.isArray(parsed.ranked)) {
-      const seen = new Set();
-      for (const i of parsed.ranked) { if (i>=0 && i<ARCHIVE.length && !seen.has(i)) { finalItems.push(ARCHIVE[i]); seen.add(i); } }
-      candidates.forEach(i => { if (!seen.has(i)) finalItems.push(ARCHIVE[i]); });
-    } else { finalItems = candidates.map(i => ARCHIVE[i]); }
-    if (parsed && parsed.synthesis) synthesis = parsed.synthesis;
-  } catch(e) { step('s3','done'); finalItems = candidates.map(i => ARCHIVE[i]); }
-
-  allResults = finalItems; renderResults(finalItems);
-  if (synthesis) { document.getElementById('synthText').textContent = synthesis; document.getElementById('synthesis').classList.add('on'); }
-  document.getElementById('filterRow').classList.add('show');
   document.getElementById('progress').classList.remove('on');
+  document.getElementById('searchBtn').disabled = true;
+  status('Searching…', true);
+
+  const fuse = getFuse();
+  let raw = fuse.search(q, { limit: 80 });
+  let finalItems = raw.map(r => r.item);
+
+  // Supplement with simple token matching when Fuse finds very few results
+  if (finalItems.length < 5) {
+    const toks = q.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    const seen = new Set(finalItems);
+    ARCHIVE.forEach(item => {
+      if (!seen.has(item) && toks.some(t =>
+        (item.p + ' ' + item.x + ' ' + (item.h || '') + ' ' + (item.s || '')).toLowerCase().includes(t)
+      )) { finalItems.push(item); seen.add(item); }
+    });
+    if (finalItems.length > 60) finalItems = finalItems.slice(0, 60);
+  }
+
   document.getElementById('searchBtn').disabled = false;
-  saveSearch(q, finalItems, synthesis); renderSavedBar(q.toLowerCase());
-  const shown = activeFilter==='all' ? finalItems.length : finalItems.filter(r=>r.t===activeFilter).length;
-  status(`Showing ${shown} results for "${q}" — saved ✓`);
+  status('', false);
+
+  if (!finalItems.length) {
+    document.getElementById('results').innerHTML = '<div class="intro" style="padding-top:28px"><div class="intro-icon">🔍</div><p>No results for “<strong>' + x(q) + '</strong>” — try different keywords or a broader phrase.</p></div>';
+    return;
+  }
+
+  allResults = finalItems;
+  renderResults(finalItems);
+  document.getElementById('filterRow').classList.add('show');
+  const shown = activeFilter === 'all' ? finalItems.length : finalItems.filter(r => r.t === activeFilter).length;
+  status(shown + ' result' + (shown !== 1 ? 's' : '') + ' for “' + q + '” — saved ✓');
+  saveSearch(q, finalItems, '');
+  renderSavedBar(q.toLowerCase());
 }
 
 // ══════════════════════════
